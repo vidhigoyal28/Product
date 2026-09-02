@@ -9,6 +9,8 @@ __pycache__/
 
 # Environment variables
 .env
+.env.*
+!.env.example
 
 # VS Code
 .vscode/
@@ -19,3 +21,7 @@ __pycache__/
 # Temporary files
 temp/
 tmp/
+
+# Node.js
+node_modules/
+dist/
