@@ -25,3 +25,9 @@ tmp/
 # Node.js
 node_modules/
 dist/
+
+# Local database
+*.db
+
+# Uploaded/generated files
+uploads/
