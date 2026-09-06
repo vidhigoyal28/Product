@@ -61,7 +61,7 @@ export default function ResultsPage() {
       }
     }
     load();
-  }, [id, getInspection]);
+  }, [id]);
 
   const handleSaveReview = async () => {
     setIsSavingReview(true);
@@ -204,7 +204,11 @@ export default function ResultsPage() {
               <UserCheck size={14} className="text-blue-400" />
               <span>Officer Sign-off</span>
             </div>
-            <p className="font-semibold text-slate-200">{inspection.officer || 'Inspector R. Sharma'}</p>
+            <p className="font-semibold text-slate-200">
+  {typeof inspection.officer === 'object'
+    ? inspection.officer.full_name || inspection.officer.username
+    : inspection.officer || 'Inspector R. Sharma'}
+</p>
             <p className="text-[11px] text-slate-400">
               Audit Status: <span className="text-slate-300 font-mono">{inspection.review?.isReviewed ? 'Reviewed & Signed' : 'Pending Officer Review'}</span>
             </p>
@@ -247,7 +251,7 @@ export default function ResultsPage() {
                 <span>Detected Violations & Non-Compliances</span>
               </h3>
               <span className="text-xs font-mono text-slate-400">
-                ({inspection.violations.length} flagged)
+                ({(inspection.violations || []).length} flagged)
               </span>
             </div>
 
@@ -262,7 +266,7 @@ export default function ResultsPage() {
                 <span>Mandatory Declarations Audit</span>
               </h3>
               <span className="text-xs font-mono text-slate-400">
-                {inspection.declarations.filter((d) => d.status === 'PASS').length} of {inspection.declarations.length} Passed
+                {(inspection.declarations || []).filter((d) => d.status === 'PASS').length} of {(inspection.declarations || []).length} Passed
               </span>
             </div>
 
@@ -398,7 +402,7 @@ export default function ResultsPage() {
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 print:text-black mb-2 border-b border-slate-800 pb-1">
               1. Statutory Non-Compliance Findings
             </h4>
-            {inspection.violations.length === 0 ? (
+            {(inspection.violations || []).length === 0 ? (
               <p className="text-xs text-emerald-400 print:text-green-700">No violations observed. Commodity is compliant under Applicable Rule.</p>
             ) : (
               <ul className="space-y-2 text-xs">

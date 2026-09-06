@@ -73,67 +73,142 @@ class DefaultOCRService(IOCRService):
     """Clean OCR interface stub generating structured tokens and confidence scores."""
 
     async def extract_text(self, image_bytes: bytes) -> OCRResult:
-        sample_tokens = [
-            OCRWordToken(text="MRP", confidence=98.0, bounding_box={"x": 58.0, "y": 70.0, "width": 12.0, "height": 4.0, "unit": "percent"}),
-            OCRWordToken(text="Rs. 150.00", confidence=96.0, bounding_box={"x": 70.0, "y": 70.0, "width": 18.0, "height": 4.0, "unit": "percent"}),
-            OCRWordToken(text="incl. of all taxes", confidence=94.0, bounding_box={"x": 58.0, "y": 75.0, "width": 30.0, "height": 4.0, "unit": "percent"}),
-            OCRWordToken(text="Net Qty: 200 g", confidence=97.0, bounding_box={"x": 15.0, "y": 78.0, "width": 24.0, "height": 6.0, "unit": "percent"}),
-            OCRWordToken(text="Unit Sale Price: Rs. 0.75 / g", confidence=92.0, bounding_box={"x": 15.0, "y": 85.0, "width": 32.0, "height": 5.0, "unit": "percent"}),
-            OCRWordToken(text="Manufactured & Packed by: Apex Packagers Ltd.", confidence=95.0, bounding_box={"x": 12.0, "y": 32.0, "width": 45.0, "height": 8.0, "unit": "percent"}),
-            OCRWordToken(text="Plot 14, Sector 5, IMT Manesar, Gurugram 122050", confidence=93.0, bounding_box={"x": 12.0, "y": 40.0, "width": 50.0, "height": 8.0, "unit": "percent"}),
-            OCRWordToken(text="Consumer Care: care@apexpack.in | 1800-200-8899", confidence=95.0, bounding_box={"x": 12.0, "y": 58.0, "width": 48.0, "height": 8.0, "unit": "percent"}),
-            OCRWordToken(text="Mfg Date: 08/2026", confidence=96.0, bounding_box={"x": 60.0, "y": 82.0, "width": 25.0, "height": 5.0, "unit": "percent"}),
-            OCRWordToken(text="Country of Origin: India", confidence=99.0, bounding_box={"x": 12.0, "y": 50.0, "width": 30.0, "height": 5.0, "unit": "percent"}),
-        ]
-        
-        full_text = "\n".join([t.text for t in sample_tokens])
-        avg_conf = sum([t.confidence for t in sample_tokens]) / len(sample_tokens)
+        import pytesseract
+        pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        from PIL import Image, ImageOps, ImageEnhance
+
+        # Convert uploaded image bytes to PIL image
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+        # Basic OCR preprocessing
+        gray = ImageOps.grayscale(image)
+        gray = ImageEnhance.Contrast(gray).enhance(2.0)
+
+        # Run REAL Tesseract OCR
+        data = pytesseract.image_to_data(
+            gray,
+            config="--psm 6",
+            output_type=pytesseract.Output.DICT
+        )
+
+        tokens = []
+
+        width, height = gray.size
+
+        for i, text in enumerate(data["text"]):
+            text = text.strip()
+
+            if not text:
+                continue
+
+            try:
+                confidence = float(data["conf"][i])
+            except (ValueError, TypeError):
+                confidence = 0.0
+
+            if confidence < 0:
+                continue
+
+            x = data["left"][i]
+            y = data["top"][i]
+            w = data["width"][i]
+            h = data["height"][i]
+
+            tokens.append(
+                OCRWordToken(
+                    text=text,
+                    confidence=confidence,
+                    bounding_box={
+                        "x": (x / width) * 100,
+                        "y": (y / height) * 100,
+                        "width": (w / width) * 100,
+                        "height": (h / height) * 100,
+                        "unit": "percent"
+                    }
+                )
+            )
+
+        full_text = " ".join(token.text for token in tokens)
+
+        avg_confidence = (
+            sum(token.confidence for token in tokens) / len(tokens)
+            if tokens
+            else 0.0
+        )
 
         return OCRResult(
             raw_full_text=full_text,
-            tokens=sample_tokens,
-            average_confidence=avg_conf
+            tokens=tokens,
+            average_confidence=avg_confidence
         )
 
 
 class DefaultRegionDetector(IRegionDetector):
-    """Clean region detector detecting candidate statutory declaration panels."""
+    """Detect statutory regions from actual OCR tokens."""
 
-    async def detect_regions(self, image_bytes: bytes) -> List[DetectedRegion]:
-        return [
-            DetectedRegion(
-                region_id="REG-MRP-01",
-                region_type="MRP_BLOCK",
-                bounding_box={"x": 55.0, "y": 68.0, "width": 35.0, "height": 14.0, "unit": "percent"},
-                confidence=95.5,
-                detected_text="MRP Rs. 150.00 incl. of all taxes"
-            ),
-            DetectedRegion(
-                region_id="REG-NETQTY-02",
-                region_type="NET_QTY_BLOCK",
-                bounding_box={"x": 14.0, "y": 76.0, "width": 35.0, "height": 15.0, "unit": "percent"},
-                confidence=96.0,
-                detected_text="Net Qty: 200 g | Unit Sale Price: Rs. 0.75 / g"
-            ),
-            DetectedRegion(
-                region_id="REG-MFG-03",
-                region_type="MANUFACTURER_BLOCK",
-                bounding_box={"x": 10.0, "y": 30.0, "width": 55.0, "height": 22.0, "unit": "percent"},
-                confidence=94.0,
-                detected_text="Manufactured & Packed by: Apex Packagers Ltd., Plot 14, Sector 5, IMT Manesar"
-            ),
-            DetectedRegion(
-                region_id="REG-CARE-04",
-                region_type="CONSUMER_CARE_BLOCK",
-                bounding_box={"x": 10.0, "y": 56.0, "width": 52.0, "height": 12.0, "unit": "percent"},
-                confidence=95.0,
-                detected_text="Consumer Care: care@apexpack.in | 1800-200-8899"
+    async def detect_regions(
+        self,
+        image_bytes: bytes
+    ) -> List[DetectedRegion]:
+
+        import re
+
+        # Run OCR so region detection is based on the uploaded image.
+        ocr_service = DefaultOCRService()
+        ocr_result = await ocr_service.extract_text(image_bytes)
+
+        regions = []
+
+        def add_region(region_type, token, index):
+            regions.append(
+                DetectedRegion(
+                    region_id=f"REG-{region_type}-{index:02d}",
+                    region_type=region_type,
+                    bounding_box=token.bounding_box,
+                    confidence=token.confidence,
+                    detected_text=token.text
+                )
             )
-        ]
+
+        for index, token in enumerate(ocr_result.tokens, start=1):
+            text = token.text.strip()
+
+            if re.search(r"\bMRP\b", text, re.IGNORECASE):
+                add_region("MRP_BLOCK", token, index)
+
+            elif re.search(
+                r"\b(Net|Qty|Quantity)\b",
+                text,
+                re.IGNORECASE
+            ):
+                add_region("NET_QTY_BLOCK", token, index)
+
+            elif re.search(
+                r"\b(Manufactured|Manufactured|Packed)\b",
+                text,
+                re.IGNORECASE
+            ):
+                add_region("MANUFACTURER_BLOCK", token, index)
+
+            elif re.search(
+                r"\b(Consumer|Customer)\b",
+                text,
+                re.IGNORECASE
+            ):
+                add_region("CONSUMER_CARE_BLOCK", token, index)
+
+            elif re.search(
+                r"\b(Country|Origin)\b",
+                text,
+                re.IGNORECASE
+            ):
+                add_region("COUNTRY_ORIGIN_BLOCK", token, index)
+
+        return regions
 
 
 class DefaultDeclarationExtractor(IDeclarationExtractor):
-    """Clean statutory entity parsing adapter."""
+    """Extract statutory declarations from actual OCR output."""
 
     async def extract_declarations(
         self,
@@ -141,68 +216,264 @@ class DefaultDeclarationExtractor(IDeclarationExtractor):
         detected_regions: List[DetectedRegion],
         product_category: Optional[str] = None
     ) -> List[ExtractedDeclarationDTO]:
-        return [
-            ExtractedDeclarationDTO(
-                field_name="commodity_name",
-                raw_text="Almond Butter Cookies / Confectionery",
-                normalized_value="Almond Cookies (Packaged Food)",
-                confidence=97.0,
-                bounding_box={"x": 15.0, "y": 15.0, "width": 45.0, "height": 8.0, "unit": "percent"}
-            ),
-            ExtractedDeclarationDTO(
-                field_name="net_quantity",
-                raw_text="Net Qty: 200 g",
-                normalized_value="200 g",
-                confidence=96.5,
-                bounding_box={"x": 15.0, "y": 78.0, "width": 24.0, "height": 6.0, "unit": "percent"}
-            ),
-            ExtractedDeclarationDTO(
-                field_name="mrp",
-                raw_text="MRP Rs. 150.00 (incl. of all taxes)",
-                normalized_value="₹ 150.00 (Incl. of all taxes)",
-                confidence=98.0,
-                bounding_box={"x": 58.0, "y": 70.0, "width": 32.0, "height": 10.0, "unit": "percent"}
-            ),
-            ExtractedDeclarationDTO(
-                field_name="unit_sale_price",
-                raw_text="Unit Sale Price: Rs. 0.75 / g",
-                normalized_value="₹ 0.75 per g",
-                confidence=93.0,
-                bounding_box={"x": 15.0, "y": 85.0, "width": 32.0, "height": 5.0, "unit": "percent"}
-            ),
-            ExtractedDeclarationDTO(
-                field_name="manufacturer_details",
-                raw_text="Apex Packagers Ltd., Plot 14, Sector 5, IMT Manesar, Gurugram, Haryana - 122050",
-                normalized_value="Apex Packagers Ltd., Plot 14, Sector 5, IMT Manesar, Gurugram, Haryana - 122050",
-                confidence=95.0,
-                bounding_box={"x": 12.0, "y": 32.0, "width": 50.0, "height": 16.0, "unit": "percent"}
-            ),
-            ExtractedDeclarationDTO(
-                field_name="customer_care",
-                raw_text="Consumer Care: care@apexpack.in | Tel: 1800-200-8899",
-                normalized_value="Care Manager, Tel: 1800-200-8899, Email: care@apexpack.in",
-                confidence=95.5,
-                bounding_box={"x": 12.0, "y": 58.0, "width": 48.0, "height": 8.0, "unit": "percent"}
-            ),
-            ExtractedDeclarationDTO(
-                field_name="date_of_packing",
-                raw_text="Mfg Date: 08/2026",
-                normalized_value="08/2026",
-                confidence=96.0,
-                bounding_box={"x": 60.0, "y": 82.0, "width": 25.0, "height": 5.0, "unit": "percent"}
-            ),
-            ExtractedDeclarationDTO(
-                field_name="country_of_origin",
-                raw_text="Country of Origin: India",
-                normalized_value="India",
-                confidence=99.0,
-                bounding_box={"x": 12.0, "y": 50.0, "width": 30.0, "height": 5.0, "unit": "percent"}
-            ),
-            ExtractedDeclarationDTO(
-                field_name="font_height_compliance",
-                raw_text="PDP Area: 160 sq.cm | Net Qty Height: 3.0 mm",
-                normalized_value="PDP Area: 160 sq.cm | Net Qty Height: 3.0 mm (Compliant)",
-                confidence=91.0,
-                bounding_box={"x": 15.0, "y": 78.0, "width": 24.0, "height": 6.0, "unit": "percent"}
+
+        import re
+
+        text = ocr_result.raw_full_text or ""
+        print("REAL OCR TEXT:", repr(text))
+        declarations = []
+
+        # ---------------------------------------------------------
+        # Helper: find OCR token/bounding box near a matched phrase
+        # ---------------------------------------------------------
+        def find_box(pattern: str):
+            regex = re.compile(pattern, re.IGNORECASE)
+
+            for token in ocr_result.tokens:
+                if regex.search(token.text):
+                    return token.bounding_box
+
+            return {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 0.0,
+                "height": 0.0,
+                "unit": "percent"
+            }
+
+        def add_declaration(
+            field_name,
+            raw_text,
+            normalized_value,
+            confidence,
+            pattern
+        ):
+            if not raw_text:
+                return
+
+            declarations.append(
+                ExtractedDeclarationDTO(
+                    field_name=field_name,
+                    raw_text=raw_text,
+                    normalized_value=normalized_value,
+                    confidence=confidence,
+                    bounding_box=find_box(pattern)
+                )
             )
+
+        # ---------------------------------------------------------
+        # 1. MRP
+        # ---------------------------------------------------------
+        mrp_match = re.search(
+            r"(?:MRP|M\.R\.P\.?)\s*[:\-]?\s*(?:Rs\.?|₹)?\s*[\d,]+(?:\.\d{1,2})?"
+            r"(?:\s*\(?(?:incl\.?|inclusive)\s*(?:of)?\s*all\s*taxes\)?)*",
+            text,
+            re.IGNORECASE
+        )
+
+        if mrp_match:
+            raw = mrp_match.group(0)
+            add_declaration(
+                "mrp",
+                raw,
+                raw,
+                ocr_result.average_confidence,
+                r"MRP"
+            )
+
+        # ---------------------------------------------------------
+        # 2. Net Quantity
+        # ---------------------------------------------------------
+        qty_match = re.search(
+            r"(?:Net\s*(?:Qty|Quantity)|Quantity)\s*[:\-]?\s*"
+            r"\d+(?:\.\d+)?\s*(?:kg|g|mg|l|ml|m|cm|mm|u|units?)",
+            text,
+            re.IGNORECASE
+        )
+
+        if qty_match:
+            raw = qty_match.group(0)
+
+            value_match = re.search(
+                r"\d+(?:\.\d+)?\s*(?:kg|g|mg|l|ml|m|cm|mm|u|units?)",
+                raw,
+                re.IGNORECASE
+            )
+
+            normalized = value_match.group(0) if value_match else raw
+
+            add_declaration(
+                "net_quantity",
+                raw,
+                normalized,
+                ocr_result.average_confidence,
+                r"(Net|Quantity|Qty)"
+            )
+
+        # ---------------------------------------------------------
+        # 3. Manufacturer / Packer
+        # ---------------------------------------------------------
+        manufacturer_match = re.search(
+            r"(?:Manufactured\s*(?:&|and)?\s*Packed\s*by|"
+            r"Manufactured\s*by|Packed\s*by|"
+            r"Manufactured\s*&\s*Marketed\s*by)\s*[:\-]?\s*"
+            r".{5,150}?(?=(?:Consumer\s*Care|Customer\s*Care|"
+            r"MRP|Net\s*(?:Qty|Quantity)|Country\s*of\s*Origin|$))",
+            text,
+            re.IGNORECASE
+        )
+
+        if manufacturer_match:
+            raw = manufacturer_match.group(0).strip()
+
+            add_declaration(
+                "manufacturer_details",
+                raw,
+                raw,
+                ocr_result.average_confidence,
+                r"(Manufactured|Packed)"
+            )
+
+        # ---------------------------------------------------------
+        # 4. Consumer Care
+        # ---------------------------------------------------------
+        care_match = re.search(
+            r"(?:Consumer\s*Care|Customer\s*Care|Customer\s*Service)"
+            r"\s*[:\-]?\s*.{3,150}?(?=(?:MRP|Net\s*(?:Qty|Quantity)|"
+            r"Country\s*of\s*Origin|Manufactured|$))",
+            text,
+            re.IGNORECASE
+        )
+
+        if care_match:
+            raw = care_match.group(0).strip()
+
+            add_declaration(
+                "customer_care",
+                raw,
+                raw,
+                ocr_result.average_confidence,
+                r"(Consumer|Customer)"
+            )
+
+        # ---------------------------------------------------------
+        # 5. Date of Packing / Manufacturing
+        # ---------------------------------------------------------
+        date_match = re.search(
+            r"(?:Mfg|Mfd|Manufacturing|Packed|Packing|Date)"
+            r".{0,30}?"
+            r"(?:0?[1-9]|1[0-2])[/\-.](?:20)?\d{2}",
+            text,
+            re.IGNORECASE
+        )
+
+        if date_match:
+            raw = date_match.group(0).strip()
+
+            value_match = re.search(
+                r"(?:0?[1-9]|1[0-2])[/\-.](?:20)?\d{2}",
+                raw
+            )
+
+            normalized = (
+                value_match.group(0)
+                if value_match
+                else raw
+            )
+
+            add_declaration(
+                "date_of_packing",
+                raw,
+                normalized,
+                ocr_result.average_confidence,
+                r"(Mfg|Mfd|Manufacturing|Packed|Packing)"
+            )
+
+        # ---------------------------------------------------------
+        # 6. Country of Origin
+        # ---------------------------------------------------------
+        origin_match = re.search(
+            r"Country\s*of\s*Origin\s*[:\-]?\s*([A-Za-z ]{2,40})",
+            text,
+            re.IGNORECASE
+        )
+
+        if origin_match:
+            raw = origin_match.group(0).strip()
+            normalized = origin_match.group(1).strip()
+
+            add_declaration(
+                "country_of_origin",
+                raw,
+                normalized,
+                ocr_result.average_confidence,
+                r"Country"
+            )
+
+        # ---------------------------------------------------------
+        # 7. Unit Sale Price
+        # ---------------------------------------------------------
+        usp_match = re.search(
+            r"(?:Unit\s*Sale\s*Price|USP)"
+            r"\s*[:\-]?\s*(?:Rs\.?|₹)?\s*"
+            r"[\d,]+(?:\.\d+)?\s*(?:/|per)\s*"
+            r"(?:kg|g|mg|l|ml|unit|units?)",
+            text,
+            re.IGNORECASE
+        )
+
+        if usp_match:
+            raw = usp_match.group(0).strip()
+
+            add_declaration(
+                "unit_sale_price",
+                raw,
+                raw,
+                ocr_result.average_confidence,
+                r"(Unit|USP)"
+            )
+
+        # ---------------------------------------------------------
+        # 8. Commodity / Product Name
+        # ---------------------------------------------------------
+        product_keywords = [
+            "aloe",
+            "gel",
+            "cream",
+            "lotion",
+            "shampoo",
+            "soap",
+            "oil",
+            "powder",
+            "biscuits",
+            "cookies",
+            "juice",
+            "paste",
+            "food",
+            "cosmetic"
         ]
+
+        product_candidates = []
+
+        for token in ocr_result.tokens:
+            token_text = token.text.strip()
+
+            if len(token_text) >= 3:
+                if any(
+                    keyword in token_text.lower()
+                    for keyword in product_keywords
+                ):
+                    product_candidates.append(token_text)
+
+        if product_candidates:
+            product_name = " ".join(product_candidates[:5])
+
+            add_declaration(
+                "commodity_name",
+                product_name,
+                product_name,
+                ocr_result.average_confidence,
+                "|".join(product_keywords)
+            )
+
+        return declarations

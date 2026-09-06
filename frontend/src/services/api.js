@@ -8,6 +8,15 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token');
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
 
 // Storage keys for local persistence
 const STORAGE_KEYS = {
@@ -190,36 +199,54 @@ export const api = {
   // Authentication
   auth: {
     async login(credentials) {
-      await delay(600);
-      const user = {
-        id: 'OFFICER-782',
-        name: credentials.username || 'Inspector R. Sharma',
-        role: 'Legal Metrology Enforcement Officer',
-        zone: 'North Zone - Division 04',
-        email: 'r.sharma@legalmetrology.gov.in',
-        badgeNumber: 'LM-DEL-2024-88',
-      };
-      localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(user));
-      return { success: true, user, token: 'mock-jwt-token-sih26034' };
-    },
+  try {
+    const response = await apiClient.post('/auth/login', {
+      username: credentials.username,
+      password: credentials.password,
+    });
+
+    const data = response.data;
+    console.log('REAL LOGIN RESPONSE:', data);
+
+    // Store real JWT token
+    localStorage.setItem('auth_token', data.access_token);
+
+    // Store real backend user
+    localStorage.setItem(
+      STORAGE_KEYS.AUTH,
+      JSON.stringify(data.user)
+    );
+
+    return {
+      success: true,
+      user: data.user,
+      token: data.access_token,
+    };
+  } catch (error) {
+    console.error('Login error:', error);
+
+    return {
+      success: false,
+      message:
+        error.response?.data?.detail ||
+        'Invalid username or password',
+    };
+  }
+},
     async getCurrentUser() {
-      const data = localStorage.getItem(STORAGE_KEYS.AUTH);
-      if (data) {
-        try {
-          return JSON.parse(data);
-        } catch (e) {
-          return null;
-        }
-      }
-      return {
-        id: 'OFFICER-782',
-        name: 'Inspector R. Sharma',
-        role: 'Legal Metrology Enforcement Officer',
-        zone: 'North Zone - Division 04',
-        email: 'r.sharma@legalmetrology.gov.in',
-        badgeNumber: 'LM-DEL-2024-88',
-      };
-    },
+  const token = localStorage.getItem('auth_token');
+  const data = localStorage.getItem(STORAGE_KEYS.AUTH);
+
+  if (!token || !data) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    return null;
+  }
+},
     async logout() {
       localStorage.removeItem(STORAGE_KEYS.AUTH);
       return { success: true };
@@ -227,138 +254,117 @@ export const api = {
   },
 
   // Dashboard Summary & Analytics
-  dashboard: {
-    async getStats() {
-      await delay(300);
-      const inspections = getStoredInspections();
-      const total = inspections.length;
-      const compliant = inspections.filter(i => i.status === 'COMPLIANT').length;
-      const nonCompliant = inspections.filter(i => i.status === 'NON_COMPLIANT').length;
-      const needsReview = inspections.filter(i => i.status === 'NEEDS_REVIEW').length;
-      const complianceRate = total > 0 ? Math.round((compliant / total) * 100) : 0;
+dashboard: {
+  async getStats() {
+    try {
+      const response = await apiClient.get('/dashboard/stats');
 
       return {
-        totalInspections: total,
-        compliantCount: compliant,
-        nonCompliantCount: nonCompliant,
-        needsReviewCount: needsReview,
-        complianceRate,
-        recentInspections: inspections.slice(0, 5),
-        categoryBreakdown: [
-          { category: 'Food & Confectionery', total: 42, compliant: 36, nonCompliant: 6 },
-          { category: 'Cosmetics & Personal Care', total: 28, compliant: 18, nonCompliant: 10 },
-          { category: 'Electronics & Hardware', total: 19, compliant: 14, nonCompliant: 5 },
-          { category: 'Pharmaceuticals & OTC', total: 15, compliant: 14, nonCompliant: 1 },
-          { category: 'Household & Detergents', total: 12, compliant: 10, nonCompliant: 2 }
-        ],
-        frequentViolations: [
-          { title: 'Omission of "Incl. of all taxes" in MRP', count: 18, rulePlaceholder: 'Applicable Rule' },
-          { title: 'Net Quantity Font Size Non-compliance', count: 14, rulePlaceholder: 'Applicable Rule' },
-          { title: 'Missing Unit Sale Price (USP)', count: 11, rulePlaceholder: 'Applicable Rule' },
-          { title: 'Incomplete Consumer Care Contact', count: 9, rulePlaceholder: 'Applicable Rule' }
-        ]
+        totalInspections: response.data.total_inspections,
+        compliantCount: response.data.compliant_count,
+        nonCompliantCount: response.data.non_compliant_count,
+        needsReviewCount: response.data.needs_review_count,
+        complianceRate: response.data.compliance_rate,
+        recentInspections: (response.data.recent_inspections || []).map(item => ({
+  ...item,
+  productName: item.product_name,
+  createdAt: item.created_at,
+  confidenceScore: item.confidence_score,
+  imageUrl: item.image_url || null,
+})),
+        categoryBreakdown: response.data.category_distribution || [],
+        frequentViolations: (response.data.violation_distribution || []).map(item => ({
+  title: item.field_name
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase()),
+  count: item.count,
+  rulePlaceholder: item.rule_clause_reference || 'Applicable Rule',
+})),
       };
+    } catch (error) {
+      console.error('Dashboard stats error:', error);
+      throw error;
     }
-  },
+  }
+},
 
   // Inspection Workflow
   inspection: {
     async create(data) {
-      await delay(500);
-      const inspections = getStoredInspections();
-      const newId = `INSP-2026-${String(Math.floor(1000 + Math.random() * 9000))}`;
-      
-      // Determine mock outcome based on product input or randomly for simulation
-      const outcomeOptions = ['COMPLIANT', 'NON_COMPLIANT', 'NEEDS_REVIEW'];
-      // Default to realistic mixed distribution
-      const randomStatus = data.forceStatus || outcomeOptions[Math.floor(Math.random() * outcomeOptions.length)];
+  try {
+    const response = await apiClient.post('/inspections', {
+      product_name: data.productName,
+      brand_name: data.brandName || null,
+      category: data.category,
+      package_type: data.packageType || 'Standard Pre-packaged',
+      is_imported: data.isImported || false,
+      reference_id: data.referenceId || null,
+      notes: data.notes || null,
+    });
 
-      const isNonCompliant = randomStatus === 'NON_COMPLIANT';
-      const isReview = randomStatus === 'NEEDS_REVIEW';
+    return response.data;
+  } catch (error) {
+    console.error('Create inspection error:', error);
+    throw error;
+  }
+},
+async uploadImage(inspectionId, file) {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('image_type', 'PDP');
 
-      const mockDeclarations = [
-        { key: 'generic_name', label: 'Common / Generic Name', value: data.productName || 'Packaged Goods Commodity', status: 'PASS', confidence: 97, rulePlaceholder: 'Applicable Rule' },
-        { key: 'net_quantity', label: 'Net Quantity', value: '250 g (Standard Unit)', status: isNonCompliant ? 'FAIL' : 'PASS', confidence: isNonCompliant ? 82 : 98, rulePlaceholder: 'Applicable Rule' },
-        { key: 'mrp', label: 'Maximum Retail Price', value: isNonCompliant ? '₹ 150.00 (Tax clause omitted)' : '₹ 150.00 (Incl. of all taxes)', status: isNonCompliant ? 'FAIL' : 'PASS', confidence: 95, rulePlaceholder: 'Applicable Rule' },
-        { key: 'unit_sale_price', label: 'Unit Sale Price (USP)', value: isNonCompliant ? 'Not found' : '₹ 0.60 per g', status: isNonCompliant ? 'FAIL' : 'PASS', confidence: 90, rulePlaceholder: 'Applicable Rule' },
-        { key: 'manufacturer_details', label: 'Manufacturer Name & Address', value: 'Apex Packagers Ltd., Industrial Area Phase 2, Noida, UP', status: 'PASS', confidence: 94, rulePlaceholder: 'Applicable Rule' },
-        { key: 'customer_care', label: 'Consumer Care / Grievance Cell', value: 'Officer in Charge, Tel: 1800-11-4000, Email: support@apexpack.in', status: 'PASS', confidence: 93, rulePlaceholder: 'Applicable Rule' },
-        { key: 'date_of_packing', label: 'Month & Year of Mfg / Packing', value: isReview ? '08/2026 (Partially smudged)' : '08/2026', status: isReview ? 'NEEDS_REVIEW' : 'PASS', confidence: isReview ? 65 : 97, rulePlaceholder: 'Applicable Rule' },
-        { key: 'country_of_origin', label: 'Country of Origin', value: isReview ? 'Unclear contrast: [IN / CN?]' : 'India', status: isReview ? 'NEEDS_REVIEW' : 'PASS', confidence: isReview ? 60 : 99, rulePlaceholder: 'Applicable Rule' },
-        { key: 'font_height_compliance', label: 'Font & Numeral Size Compliance', value: isNonCompliant ? 'PDP: 120 sq.cm | Font: 1.5 mm (Deficient)' : 'PDP: 120 sq.cm | Font: 2.8 mm (Compliant)', status: isNonCompliant ? 'FAIL' : 'PASS', confidence: 91, rulePlaceholder: 'Applicable Rule' }
-      ];
-
-      const mockViolations = isNonCompliant ? [
-        {
-          id: `VIOL-${Date.now()}-1`,
-          title: 'Deficient Maximum Retail Price (MRP) Declaration',
-          rule: 'Applicable Rule',
-          severity: 'HIGH',
-          description: 'The price declaration lacks the mandatory "Inclusive of all taxes" statement.'
+    const response = await apiClient.post(
+      `/inspections/${inspectionId}/images`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
         },
-        {
-          id: `VIOL-${Date.now()}-2`,
-          title: 'Missing Unit Sale Price (USP)',
-          rule: 'Applicable Rule',
-          severity: 'HIGH',
-          description: 'Mandatory Unit Sale Price per unit measure is missing from the display panel.'
-        },
-        {
-          id: `VIOL-${Date.now()}-3`,
-          title: 'Numeral Height Violation on Principal Display Panel',
-          rule: 'Applicable Rule',
-          severity: 'MEDIUM',
-          description: 'The numeral height of net quantity is less than the prescribed minimum for the package area.'
-        }
-      ] : isReview ? [
-        {
-          id: `VIOL-${Date.now()}-4`,
-          title: 'Low OCR Confidence on Country of Origin & Packing Date',
-          rule: 'Applicable Rule',
-          severity: 'LOW',
-          description: 'Image contrast or angle prevented definite automated determination. Officer review advised.'
-        }
-      ] : [];
-
-      const newInspection = {
-        id: newId,
-        productName: data.productName || 'Unnamed Package Sample',
-        category: data.category || 'General Merchandise',
-        referenceId: data.referenceId || `REF-${Math.floor(1000 + Math.random() * 9000)}`,
-        imageUrl: data.imageUrl || 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=600&auto=format&fit=crop&q=60',
-        status: randomStatus,
-        confidenceScore: isNonCompliant ? 84.6 : isReview ? 72.1 : 97.2,
-        createdAt: new Date().toISOString(),
-        officer: 'Inspector R. Sharma',
-        declarations: mockDeclarations,
-        violations: mockViolations,
-        boundingBoxes: [
-          { id: 1, label: 'MRP & Tax Panel', x: 55, y: 70, width: 32, height: 14, status: isNonCompliant ? 'FAIL' : 'PASS' },
-          { id: 2, label: 'Net Quantity Block', x: 18, y: 76, width: 24, height: 10, status: isNonCompliant ? 'FAIL' : 'PASS' },
-          { id: 3, label: 'Manufacturer Declaration', x: 12, y: 32, width: 45, height: 24, status: 'PASS' },
-          { id: 4, label: 'Consumer Grievance Box', x: 12, y: 58, width: 40, height: 15, status: 'PASS' }
-        ],
-        review: {
-          isReviewed: false,
-          officerNotes: '',
-          actionTaken: 'PENDING'
-        }
-      };
-
-      inspections.unshift(newInspection);
-      saveStoredInspections(inspections);
-      return newInspection;
-    },
-
-    async getById(id) {
-      await delay(250);
-      const inspections = getStoredInspections();
-      const found = inspections.find(i => i.id === id);
-      if (!found) {
-        throw new Error(`Inspection ${id} not found`);
       }
-      return found;
-    },
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error('Image upload error:', error);
+    throw error;
+  }
+},
+async triggerAnalysis(inspectionId) {
+  try {
+    const response = await apiClient.post(
+      '/analysis/trigger',
+      {
+        inspection_id: inspectionId,
+        force_reprocess: false,
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error('Analysis trigger error:', error);
+    throw error;
+  }
+},
+
+async getById(id) {
+  try {
+    const response = await apiClient.get(`/inspections/${id}`);
+
+    const data = response.data;
+    const firstImage = data.images?.[0];
+
+    return {
+      ...data,
+      imageUrl: firstImage?.url
+        ? `${apiClient.defaults.baseURL.replace('/api', '')}${firstImage.url}`
+        : null,
+    };
+  } catch (error) {
+    console.error('Get inspection error:', error);
+    throw error;
+  }
+},
 
     async updateReview(id, reviewPayload) {
       await delay(350);

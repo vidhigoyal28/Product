@@ -89,7 +89,7 @@ export default function ProcessingPage() {
       }
     }
     load();
-  }, [id, getInspection]);
+  }, [id]);
 
   // Stage simulation runner
   useEffect(() => {

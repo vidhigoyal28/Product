@@ -75,8 +75,8 @@ export default function NewInspectionPage() {
         productName: productName.trim(),
         category,
         referenceId: referenceId.trim(),
-        imageUrl: image.previewUrl,
-        forceStatus: simulatedOutcome,
+        file: image.file,
+        
       });
 
       // Route to Processing Simulator page

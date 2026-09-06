@@ -25,11 +25,27 @@ export function InspectionProvider({ children }) {
   }, []);
 
   const createInspection = async (formData) => {
+  try {
+    // 1. Create inspection in backend
     const created = await api.inspection.create(formData);
+
+    // 2. Upload the actual selected image
+    if (formData.file) {
+      await api.inspection.uploadImage(created.id, formData.file);
+    }
+    await api.inspection.triggerAnalysis(created.id);
+    // 3. Keep the created inspection selected
     setCurrentInspection(created);
+
+    // 4. Refresh inspection history
     await refreshHistory();
+
     return created;
-  };
+  } catch (error) {
+    console.error('Inspection creation failed:', error);
+    throw error;
+  }
+};
 
   const getInspection = async (id) => {
     const item = await api.inspection.getById(id);
