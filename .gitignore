@@ -31,3 +31,7 @@ dist/
 
 # Uploaded/generated files
 uploads/
+
+# Local backup files
+*.backup.py
+*.mock.backup.js
