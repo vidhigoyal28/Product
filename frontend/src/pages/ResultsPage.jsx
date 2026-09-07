@@ -110,6 +110,27 @@ export default function ResultsPage() {
   const isNonCompliant = inspection.status === 'NON_COMPLIANT';
   const isNeedsReview = inspection.status === 'NEEDS_REVIEW';
 
+// Report data - supports backend snake_case fields
+const reportProductName =
+  inspection.productName || inspection.product_name || 'Not Available';
+
+const reportReferenceId =
+  inspection.referenceId || inspection.reference_id || 'Not Available';
+
+const reportConfidence =
+  inspection.confidenceScore ?? inspection.confidence_score ?? 0;
+
+const reportCreatedAt =
+  inspection.createdAt || inspection.created_at;
+
+const reportDate = reportCreatedAt
+  ? new Date(reportCreatedAt).toLocaleDateString()
+  : 'Not Available';
+
+const reportDeclarations = inspection.declarations || [];
+
+
+
   return (
     <div className="space-y-8">
       {/* Navigation Breadcrumb & Actions Bar */}
@@ -382,57 +403,110 @@ export default function ResultsPage() {
           </div>
 
           {/* Meta Details Table */}
-          <div className="grid grid-cols-2 gap-4 text-xs">
-            <div className="space-y-1">
-              <p><span className="text-slate-400 print:text-gray-600">Inspection ID:</span> <span className="font-mono font-bold">{inspection.id}</span></p>
-              <p><span className="text-slate-400 print:text-gray-600">Reference:</span> <span className="font-mono">{inspection.referenceId}</span></p>
-              <p><span className="text-slate-400 print:text-gray-600">Commodity:</span> <span className="font-bold">{inspection.productName}</span></p>
-              <p><span className="text-slate-400 print:text-gray-600">Category:</span> {inspection.category}</p>
-            </div>
-            <div className="space-y-1 text-right">
-              <p><span className="text-slate-400 print:text-gray-600">Inspection Date:</span> {new Date(inspection.createdAt).toLocaleDateString()}</p>
-              <p><span className="text-slate-400 print:text-gray-600">Enforcement Officer:</span> {inspection.officer}</p>
-              <p><span className="text-slate-400 print:text-gray-600">Overall Status:</span> <span className="font-bold font-mono">{inspection.status}</span></p>
-              <p><span className="text-slate-400 print:text-gray-600">AI Confidence:</span> {inspection.confidenceScore}%</p>
-            </div>
-          </div>
+          {/* Meta Details Table */}
+<div className="grid grid-cols-2 gap-4 text-xs">
+  <div className="space-y-1">
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Inspection ID:
+      </span>{' '}
+      <span className="font-mono font-bold">
+        {inspection.id}
+      </span>
+    </p>
 
-          {/* Violations Summary in Report */}
-          <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 print:text-black mb-2 border-b border-slate-800 pb-1">
-              1. Statutory Non-Compliance Findings
-            </h4>
-            {(inspection.violations || []).length === 0 ? (
-              <p className="text-xs text-emerald-400 print:text-green-700">No violations observed. Commodity is compliant under Applicable Rule.</p>
-            ) : (
-              <ul className="space-y-2 text-xs">
-                {inspection.violations.map((v, i) => (
-                  <li key={i} className="p-2.5 rounded bg-slate-900 print:bg-gray-100 border border-slate-800 print:border-gray-300">
-                    <div className="flex justify-between font-semibold">
-                      <span>• {v.title}</span>
-                      <span className="font-mono text-[11px] text-slate-400 print:text-black">{v.rule}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 print:text-gray-700 mt-0.5">{v.description}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Reference:
+      </span>{' '}
+      <span className="font-mono">
+        {reportReferenceId}
+      </span>
+    </p>
 
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Commodity:
+      </span>{' '}
+      <span className="font-bold">
+        {reportProductName}
+      </span>
+    </p>
+
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Category:
+      </span>{' '}
+      {inspection.category || 'Not Available'}
+    </p>
+  </div>
+
+  <div className="space-y-1 text-right">
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Inspection Date:
+      </span>{' '}
+      {reportDate}
+    </p>
+
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Enforcement Officer:
+      </span>{' '}
+      inspector.sharma
+    </p>
+
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Overall Status:
+      </span>{' '}
+      <span className="font-bold font-mono">
+        {inspection.status}
+      </span>
+    </p>
+
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        AI Confidence:
+      </span>{' '}
+      {reportConfidence}%
+    </p>
+  </div>
+</div>
           {/* Declarations Summary */}
-          <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 print:text-black mb-2 border-b border-slate-800 pb-1">
-              2. Mandatory Declarations Audit Summary
-            </h4>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              {inspection.declarations.map((d, i) => (
-                <div key={i} className="flex justify-between p-1.5 rounded bg-slate-900/60 print:bg-gray-50 border border-slate-800 print:border-gray-200">
-                  <span className="text-slate-400 print:text-gray-600">{d.label}:</span>
-                  <span className="font-mono font-medium">{d.status}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Declarations Summary */}
+<div>
+  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 print:text-black mb-2 border-b border-slate-800 pb-1">
+    2. Mandatory Declarations Audit Summary
+  </h4>
+
+  <div className="grid grid-cols-2 gap-2 text-[11px]">
+    {reportDeclarations.length > 0 ? (
+      reportDeclarations.map((d, i) => (
+        <div
+          key={d.id || i}
+          className="flex justify-between gap-3 p-1.5 rounded bg-slate-900/60 print:bg-gray-50 border border-slate-800 print:border-gray-200"
+        >
+          <span className="text-slate-400 print:text-gray-600">
+            {d.field_name || d.label || 'Declaration'}:
+          </span>
+
+          <span className="font-mono font-medium text-right">
+            {d.raw_text ||
+              d.normalized_value ||
+              d.value ||
+              d.status ||
+              'Not Detected'}
+          </span>
+        </div>
+      ))
+    ) : (
+      <p className="text-xs text-slate-400">
+        No declaration data available.
+      </p>
+    )}
+  </div>
+</div>
 
           {/* Official Signatory Box */}
           <div className="pt-6 border-t border-slate-800 print:border-black flex justify-between items-end text-xs">
@@ -442,7 +516,7 @@ export default function ResultsPage() {
             </div>
             <div className="text-center">
               <div className="w-36 border-b border-slate-600 print:border-black mb-1"></div>
-              <p className="font-bold">{inspection.officer || 'Inspector R. Sharma'}</p>
+              <p className="font-bold">inspector.sharma</p>
               <p className="text-[10px] text-slate-400 print:text-gray-600">Legal Metrology Inspector</p>
             </div>
           </div>
