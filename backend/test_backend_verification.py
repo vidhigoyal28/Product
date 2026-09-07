@@ -1,5 +1,6 @@
 import io
 import sys
+import time
 from pathlib import Path
 from fastapi.testclient import TestClient
 
@@ -80,9 +81,18 @@ def run_tests():
 
         # 5. Image Upload
         print("\n[5] Testing Package Image Upload (POST /api/inspections/{id}/images)...")
-        from PIL import Image as PILImage
+        from PIL import Image as PILImage, ImageDraw
         img_buf = io.BytesIO()
-        test_img = PILImage.new("RGB", (640, 480), color=(73, 109, 137))
+        test_img = PILImage.new("RGB", (800, 600), color=(255, 255, 255))
+        draw = ImageDraw.Draw(test_img)
+        draw.text((30, 30), "NutriDelight Almond Cookies", fill=(0, 0, 0))
+        draw.text((30, 70), "MRP: Rs. 150.00 (inclusive of all taxes)", fill=(0, 0, 0))
+        draw.text((30, 110), "Net Quantity: 200 g", fill=(0, 0, 0))
+        draw.text((30, 150), "Manufactured by: NutriDelight Foods Private Limited", fill=(0, 0, 0))
+        draw.text((30, 190), "Consumer Care: care@nutridelight.com, 1800-123-4567", fill=(0, 0, 0))
+        draw.text((30, 230), "Mfg Date: 08/2026", fill=(0, 0, 0))
+        draw.text((30, 270), "Country of Origin: India", fill=(0, 0, 0))
+        draw.text((30, 310), "Unit Sale Price: Rs. 0.75 / g", fill=(0, 0, 0))
         test_img.save(img_buf, format="JPEG")
         img_bytes = img_buf.getvalue()
 
@@ -140,10 +150,11 @@ def run_tests():
         print(f"  -> Passed: Compliance evaluation generated {len(eval_data['findings'])} findings across {eval_data['total_rules_evaluated']} rules (Status: {eval_data['overall_status']}).")
 
         # 9. Role-Based Authorization
+        test_rule_id = f"RULE-TEST-{int(time.time())}"
         print("\n[9] Testing Role-Based Authorization (RBAC)...")
         # Inspector trying to create a rule (Restricted to ADMIN/REVIEWER)
         forbidden_res = client.post("/api/rules", headers=inspector_headers, json={
-            "rule_id": "RULE-TEST-999",
+            "rule_id": test_rule_id,
             "requirement": "Unauthorized test rule"
         })
         assert forbidden_res.status_code == 403, f"Expected 403 Forbidden for Inspector creating rule, got {forbidden_res.status_code}"
@@ -151,7 +162,7 @@ def run_tests():
 
         # Admin creating a rule (Allowed)
         allowed_rule_res = client.post("/api/rules", headers=admin_headers, json={
-            "rule_id": "RULE-TEST-999",
+            "rule_id": test_rule_id,
             "source_document": "Legal Metrology (Packaged Commodities) Rules, 2011",
             "rule_clause_reference": "Applicable Rule",
             "version": "2011.1",

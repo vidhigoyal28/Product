@@ -316,9 +316,37 @@ export const api = {
         const data = response.data;
         const firstImage = data.images?.[0];
 
+        const findings = data.findings || [];
+        const violations = (data.violations && data.violations.length > 0)
+          ? data.violations
+          : findings
+              .filter((f) => f.result === 'FAIL')
+              .map((f, idx) => ({
+                id: f.id || `v-${idx}`,
+                field: f.field,
+                title: f.field
+                  ? f.field.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) + ' Non-Compliance'
+                  : 'Statutory Non-Compliance',
+                description: f.reason,
+                severity: f.rule?.severity || 'HIGH',
+                rule: f.rule?.rule_clause_reference || 'Applicable Rule',
+              }));
+
+        const safeOfficer =
+          typeof data.officer === 'object' && data.officer !== null
+            ? data.officer.full_name || data.officer.username || 'Inspector'
+            : data.officer || 'Inspector';
+
         return {
           ...data,
-
+          productName: data.product_name || data.productName,
+          referenceId: data.reference_id || data.referenceId,
+          confidenceScore: data.confidence_score ?? data.confidenceScore ?? 0,
+          createdAt: data.created_at || data.createdAt,
+          overallStatus: data.overall_status || data.overallStatus || data.status,
+          status: data.overall_status || data.status || 'NEEDS_REVIEW',
+          officer: safeOfficer,
+          violations,
           imageUrl: firstImage?.url
             ? `${apiClient.defaults.baseURL.replace(
                 '/api',
@@ -337,39 +365,40 @@ export const api = {
     // Uses the REAL backend /reviews API.
     // -------------------------------------------------------------------------
 
- async updateReview(id, reviewPayload) {
-  try {
-    const response = await apiClient.post(
-      `/reviews?inspection_id=${encodeURIComponent(id)}`,
-      {
-        action_type: reviewPayload.actionType,
-        new_status: reviewPayload.newStatus,
-        comments: reviewPayload.comments || null,
+    async updateReview(id, reviewPayload) {
+      try {
+        const comments = (reviewPayload.comments || '').trim() || 'Officer review verdict updated';
+        const response = await apiClient.post(
+          `/reviews?inspection_id=${encodeURIComponent(id)}`,
+          {
+            action_type: reviewPayload.actionType || reviewPayload.action_type || 'SIGN_OFF',
+            new_status: reviewPayload.newStatus || reviewPayload.new_status || null,
+            comments,
+          }
+        );
+
+        return response.data;
+      } catch (error) {
+        console.error('Update review error:', error);
+
+        // Convert FastAPI validation errors into a safe string
+        const detail = error.response?.data?.detail;
+
+        let message = 'Failed to save officer review';
+
+        if (typeof detail === 'string') {
+          message = detail;
+        } else if (Array.isArray(detail)) {
+          message = detail
+            .map(item => item.msg || 'Validation error')
+            .join(', ');
+        } else if (detail) {
+          message = JSON.stringify(detail);
+        }
+
+        throw new Error(message);
       }
-    );
-
-    return response.data;
-  } catch (error) {
-    console.error('Update review error:', error);
-
-    // Convert FastAPI validation errors into a safe string
-    const detail = error.response?.data?.detail;
-
-    let message = 'Failed to save officer review';
-
-    if (typeof detail === 'string') {
-      message = detail;
-    } else if (Array.isArray(detail)) {
-      message = detail
-        .map(item => item.msg || 'Validation error')
-        .join(', ');
-    } else if (detail) {
-      message = JSON.stringify(detail);
-    }
-
-    throw new Error(message);
-  }
-},
+    },
 
     async getReviews(id) {
       try {
@@ -422,35 +451,26 @@ export const api = {
           }
         );
 
-        return (response.data || []).map((item) => ({
-          id: item.inspection_code || item.id,
-          backendId: item.id,
+        return (response.data || []).map((item) => {
+          const safeOfficer =
+            typeof item.officer === 'object' && item.officer !== null
+              ? item.officer.full_name || item.officer.username || 'Inspector'
+              : item.officer || 'Inspector';
 
-          referenceId:
-            item.reference_id || '—',
-
-          productName:
-            item.product_name || 'Unknown Product',
-
-          category:
-            item.category || '—',
-
-          status:
-            item.overall_status ||
-            item.status ||
-            'NEEDS_REVIEW',
-
-          confidenceScore:
-            Number(item.confidence_score || 0),
-
-          createdAt: item.created_at,
-
-          imageUrl: null,
-
-          violations: [],
-
-          officer: 'Inspector',
-        }));
+          return {
+            id: item.inspection_code || item.id,
+            backendId: item.id,
+            referenceId: item.reference_id || '—',
+            productName: item.product_name || 'Unknown Product',
+            category: item.category || '—',
+            status: item.overall_status || item.status || 'NEEDS_REVIEW',
+            confidenceScore: Number(item.confidence_score || 0),
+            createdAt: item.created_at,
+            imageUrl: null,
+            violations: item.violations || [],
+            officer: safeOfficer,
+          };
+        });
       } catch (error) {
         console.error('History API error:', error);
         throw error;

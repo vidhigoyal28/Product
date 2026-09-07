@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: legal-metrology-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: legal-metrology-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: "https://*.vercel.app,http://localhost:5173"
+
+databases:
+  - name: legal-metrology-db
+    plan: free
+    region: oregon
+    databaseName: legal_metrology
+    user: legal_metrology_admin

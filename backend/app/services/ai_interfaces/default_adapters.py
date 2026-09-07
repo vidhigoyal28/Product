@@ -1,4 +1,6 @@
 import io
+import os
+import shutil
 from typing import List, Optional
 from PIL import Image
 
@@ -74,7 +76,23 @@ class DefaultOCRService(IOCRService):
 
     async def extract_text(self, image_bytes: bytes) -> OCRResult:
         import pytesseract
-        pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        import shutil
+        from app.core.config import settings
+
+        # Dynamically resolve Tesseract executable across Windows and Linux deployment environments
+        if settings.TESSERACT_CMD:
+            pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
+        elif os.getenv("TESSERACT_CMD"):
+            pytesseract.pytesseract.tesseract_cmd = os.getenv("TESSERACT_CMD")
+        elif shutil.which("tesseract"):
+            pytesseract.pytesseract.tesseract_cmd = shutil.which("tesseract")
+        elif os.name == "nt" and os.path.exists(r"C:\Program Files\Tesseract-OCR\tesseract.exe"):
+            pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        elif os.name == "nt" and os.path.exists(r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"):
+            pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
+        else:
+            pytesseract.pytesseract.tesseract_cmd = "tesseract"
+
         from PIL import Image, ImageOps, ImageEnhance
 
         # Convert uploaded image bytes to PIL image
