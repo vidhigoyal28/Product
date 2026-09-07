@@ -31,7 +31,7 @@ export default function NewInspectionPage() {
   const [productName, setProductName] = useState('');
   const [category, setCategory] = useState('Food & Confectionery');
   const [referenceId, setReferenceId] = useState('');
-  const [image, setImage] = useState(null);
+  const [images, setImages] = useState([]);
   const [simulatedOutcome, setSimulatedOutcome] = useState('COMPLIANT');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,7 +59,7 @@ export default function NewInspectionPage() {
     e.preventDefault();
     setError('');
 
-    if (!image) {
+    if (images.length === 0) {
       setError('Please upload or capture a package label image before starting analysis.');
       return;
     }
@@ -75,7 +75,10 @@ export default function NewInspectionPage() {
         productName: productName.trim(),
         category,
         referenceId: referenceId.trim(),
-        file: image.file,
+        files: images.map((img) => ({
+          file: img.file,
+          imageType: img.imageType || 'PDP',
+        })),
         
       });
 
@@ -126,8 +129,8 @@ export default function NewInspectionPage() {
           icon={ScanLine}
         >
           <ImageUploader
-            image={image}
-            onImageChange={setImage}
+            images={images}
+            onImagesChange={setImages}
             onPresetSelect={handlePresetSelect}
           />
         </Card>

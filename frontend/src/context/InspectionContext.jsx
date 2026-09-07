@@ -30,8 +30,15 @@ export function InspectionProvider({ children }) {
     const created = await api.inspection.create(formData);
 
     // 2. Upload the actual selected image
-    if (formData.file) {
-      await api.inspection.uploadImage(created.id, formData.file);
+    // // 2. Upload all selected package images
+    if (formData.files?.length) {
+      for (const image of formData.files) {
+        await api.inspection.uploadImage(
+          created.id,
+          image.file,
+          image.imageType || 'PDP'
+        );
+      }
     }
     await api.inspection.triggerAnalysis(created.id);
     // 3. Keep the created inspection selected

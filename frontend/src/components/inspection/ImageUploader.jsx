@@ -23,8 +23,8 @@ const SAMPLE_PRESETS = [
 ];
 
 export default function ImageUploader({
-  image,
-  onImageChange,
+  images = [],
+  onImagesChange,
   onPresetSelect,
   className = ''
 }) {
@@ -45,39 +45,56 @@ export default function ImageUploader({
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processFile(e.dataTransfer.files[0]);
-    }
+
+    const droppedFiles = Array.from(e.dataTransfer.files || []);
+
+    droppedFiles.forEach((file) => {
+      processFile(file, images.length === 0 ? 'PDP' : 'ADDITIONAL');
+    });
   };
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      processFile(e.target.files[0]);
-    }
-  };
+    const selectedFiles = Array.from(e.target.files || []);
 
-  const processFile = (file) => {
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file (JPG, PNG, WEBP, HEIC)');
-      return;
-    }
+    selectedFiles.forEach((file) => {
+      processFile(file, images.length === 0 ? 'PDP' : 'ADDITIONAL');
+    });
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      onImageChange({
-        file,
-        previewUrl: event.target.result,
-        fileName: file.name,
-        fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
-        uploadedAt: new Date().toLocaleTimeString(),
-      });
+    e.target.value = '';
+};
+
+const processFile = (file, imageType = 'PDP') => {
+  if (!file.type.startsWith('image/')) {
+    alert('Please upload an image file (JPG, PNG, WEBP, HEIC)');
+    return;
+  }
+
+  const reader = new FileReader();
+
+  reader.onload = (event) => {
+    const newImage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      file,
+      previewUrl: event.target.result,
+      fileName: file.name,
+      fileSize: (file.size / (1024 * 1024)).toFixed(2) + ' MB',
+      uploadedAt: new Date().toLocaleTimeString(),
+      imageType,
     };
-    reader.readAsDataURL(file);
+
+    onImagesChange([...(images || []), newImage]);
   };
 
-  const handleRemove = (e) => {
+  reader.readAsDataURL(file);
+};
+
+  const handleRemove = (imageId, e) => {
     e.stopPropagation();
-    onImageChange(null);
+
+    onImagesChange(
+      (images || []).filter((item) => item.id !== imageId)
+    );
+
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
@@ -102,7 +119,7 @@ export default function ImageUploader({
         className="hidden"
       />
 
-      {!image ? (
+      {images.length === 0 ? (
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -156,40 +173,83 @@ export default function ImageUploader({
           </p>
         </div>
       ) : (
-        /* Image Preview Card */
-        <div className="rounded-2xl border border-slate-700 bg-slate-900/80 overflow-hidden">
-          <div className="relative aspect-video max-h-80 w-full bg-slate-950 flex items-center justify-center overflow-hidden">
-            <img
-              src={image.previewUrl || image.url}
-              alt="Package preview"
-              className="w-full h-full object-contain"
-            />
-
-            <div className="absolute top-3 right-3 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-200 text-xs font-medium border border-slate-700 flex items-center gap-1.5 backdrop-blur-sm shadow-lg transition-all"
-                title="Replace Image"
-              >
-                <RefreshCw size={14} />
-                <span>Replace</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleRemove}
-                className="p-1.5 rounded-lg bg-rose-900/80 hover:bg-rose-800 text-rose-200 border border-rose-700 backdrop-blur-sm shadow-lg transition-all"
-                title="Remove Image"
-              >
-                <X size={16} />
-              </button>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-semibold text-slate-200">
+                Package Images
+              </h4>
+              <p className="text-[11px] text-slate-400">
+                {images.length} image{images.length !== 1 ? 's' : ''} selected
+              </p>
             </div>
 
-            <div className="absolute bottom-3 left-3 px-3 py-1 rounded-md bg-slate-900/90 border border-slate-700/80 text-[11px] text-slate-300 backdrop-blur-sm">
-              <span className="text-emerald-400 font-medium">✓ Image Ready</span>
-              {image.fileSize && <span className="text-slate-400 ml-2">({image.fileSize})</span>}
-            </div>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5"
+            >
+              <UploadCloud size={14} />
+              Add Image
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {images.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-2xl border border-slate-700 bg-slate-900/80 overflow-hidden"
+              >
+                <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden">
+                  <img
+                    src={item.previewUrl || item.url}
+                    alt={`Package ${item.imageType || 'PDP'} preview`}
+                    className="w-full h-full object-contain"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={(e) => handleRemove(item.id, e)}
+                    className="absolute top-3 right-3 p-1.5 rounded-lg bg-rose-900/90 hover:bg-rose-800 text-rose-200 border border-rose-700"
+                    title="Remove Image"
+                  >
+                    <X size={16} />
+                  </button>
+
+                  <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-md bg-slate-900/90 border border-slate-700 text-[10px] text-slate-300">
+                    {item.fileSize}
+                  </div>
+                </div>
+
+                <div className="p-3 space-y-2">
+                  <p className="text-xs font-medium text-slate-200 truncate">
+                    {item.fileName}
+                  </p>
+
+                  <label className="block text-[11px] text-slate-400">
+                    Image Type
+                  </label>
+
+                  <select
+                    value={item.imageType || 'PDP'}
+                    onChange={(e) => {
+                      onImagesChange(
+                        images.map((img) =>
+                          img.id === item.id
+                            ? { ...img, imageType: e.target.value }
+                            : img
+                        )
+                      );
+                    }}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="PDP">Front / PDP</option>
+                    <option value="BACK">Back Panel</option>
+                    <option value="ADDITIONAL">Additional / Side</option>
+                  </select>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -206,11 +266,13 @@ export default function ImageUploader({
               key={idx}
               type="button"
               onClick={() => {
-                onImageChange({
+                onImagesChange({
+                  id: `preset-${Date.now()}-${idx}`,
                   previewUrl: preset.url,
                   fileName: `${preset.name}.jpg`,
                   fileSize: '1.2 MB',
                   uploadedAt: 'Preset Sample',
+                  imageType: 'PDP',
                 });
                 if (onPresetSelect) {
                   onPresetSelect(preset);

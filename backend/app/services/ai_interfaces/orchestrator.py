@@ -72,32 +72,45 @@ class AIPipelineOrchestrator:
         # Stage 2: Image quality assessment
         # ---------------------------------------------------------------------
         t0 = time.time()
+        quality_scores = []
         primary_image_bytes = b""
         primary_image_id = None
-        quality_score = 90.0
 
-        if images:
-            primary_img = images[0]
-            primary_image_id = primary_img.id
+        for image in images:
             try:
-                primary_image_bytes = await storage.get_file(primary_img.file_path)
+                image_bytes = await storage.get_file(image.file_path)
+
+                if not primary_image_bytes:
+                    primary_image_bytes = image_bytes
+                    primary_image_id = image.id
+
                 quality_metrics = await self.quality_analyzer.assess_quality(
-                    primary_image_bytes, primary_img.file_name
+                    image_bytes, image.file_name
                 )
-                primary_img.quality_status = quality_metrics.quality_status
-                primary_img.quality_metrics = quality_metrics.model_dump()
-                quality_score = quality_metrics.sharpness
-                db.commit()
-            except Exception:
-                pass
+                image.quality_status = quality_metrics.quality_status
+                image.quality_metrics = quality_metrics.model_dump()
+                quality_scores.append(quality_metrics.sharpness)
+
+            except Exception as exc:
+                print(f"Image quality analysis failed for {image.file_name}: {exc}")
+
+        if quality_scores:
+            quality_score = sum(quality_scores) / len(quality_scores)
+        else:
+            quality_score = 0.0
+
+        db.commit()
 
         stage2 = StageResult(
             stage_id=2,
             stage_name="Image quality assessment",
             status="COMPLETED",
             duration_ms=int((time.time() - t0) * 1000) + 250,
-            metrics={"sharpness_score": quality_score, "quality_status": "GOOD"},
-            remarks="Image resolution and sharpness validated for statutory inspection."
+            metrics={
+                "images_assessed": len(quality_scores),
+                "average_sharpness_score": quality_score,
+            },
+            remarks=f"Quality assessment completed for {len(quality_scores)} package image(s)."
         )
         stages.append(stage2)
 
@@ -105,14 +118,25 @@ class AIPipelineOrchestrator:
         # Stage 3: Image preprocessing
         # ---------------------------------------------------------------------
         t0 = time.time()
-        if primary_image_bytes:
-            prep_res = await self.preprocessor.preprocess(primary_image_bytes, images[0].image_type)
+        processed_images = []
+
+        for image in images:
+            try:
+                image_bytes = await storage.get_file(image.file_path)
+                prep_res = await self.preprocessor.preprocess(
+                    image_bytes, image.image_type
+                )
+                processed_images.append((image, image_bytes, prep_res))
+            except Exception as exc:
+                print(f"Image preprocessing failed for {image.file_name}: {exc}")
+
         stage3 = StageResult(
             stage_id=3,
             stage_name="Image preprocessing",
             status="COMPLETED",
             duration_ms=int((time.time() - t0) * 1000) + 300,
-            remarks="Perspective deskewing, noise reduction, and PDP panel alignment complete."
+            metrics={"images_preprocessed": len(processed_images)},
+            remarks=f"Preprocessing completed for {len(processed_images)} package image(s)."
         )
         stages.append(stage3)
 
@@ -120,14 +144,27 @@ class AIPipelineOrchestrator:
         # Stage 4: Declaration detection (Regions)
         # ---------------------------------------------------------------------
         t0 = time.time()
-        detected_regions = await self.region_detector.detect_regions(primary_image_bytes)
+        image_regions = []
+
+        for image, image_bytes, prep_res in processed_images:
+            try:
+                detected_regions = await self.region_detector.detect_regions(image_bytes)
+                image_regions.append((image, image_bytes, detected_regions))
+            except Exception as exc:
+                print(f"Region detection failed for {image.file_name}: {exc}")
+
+        total_regions = sum(len(regions) for _, _, regions in image_regions)
+
         stage4 = StageResult(
             stage_id=4,
             stage_name="Declaration detection",
             status="COMPLETED",
             duration_ms=int((time.time() - t0) * 1000) + 350,
-            metrics={"detected_regions": len(detected_regions)},
-            remarks=f"Demarcated {len(detected_regions)} statutory declaration blocks on package."
+            metrics={
+                "images_processed": len(image_regions),
+                "detected_regions": total_regions,
+            },
+            remarks=f"Demarcated {total_regions} statutory declaration block(s) across {len(image_regions)} image(s)."
         )
         stages.append(stage4)
 
@@ -135,14 +172,45 @@ class AIPipelineOrchestrator:
         # Stage 5: OCR extraction
         # ---------------------------------------------------------------------
         t0 = time.time()
-        ocr_result = await self.ocr_service.extract_text(primary_image_bytes)
+        image_ocr_results = []
+
+        for image, image_bytes, detected_regions in image_regions:
+            try:
+                ocr_result = await self.ocr_service.extract_text(image_bytes)
+                image_ocr_results.append(
+                    (image, ocr_result, detected_regions)
+                )
+            except Exception as exc:
+                print(f"OCR failed for {image.file_name}: {exc}")
+
+        total_tokens = sum(
+            len(ocr_result.tokens)
+            for _, ocr_result, _ in image_ocr_results
+        )
+
+        confidence_values = [
+            ocr_result.average_confidence
+            for _, ocr_result, _ in image_ocr_results
+            if ocr_result.average_confidence is not None
+        ]
+
+        average_ocr_confidence = (
+            sum(confidence_values) / len(confidence_values)
+            if confidence_values
+            else 0.0
+        )
+
         stage5 = StageResult(
             stage_id=5,
             stage_name="OCR extraction",
             status="COMPLETED",
             duration_ms=int((time.time() - t0) * 1000) + 400,
-            metrics={"extracted_tokens": len(ocr_result.tokens), "avg_confidence": ocr_result.average_confidence},
-            remarks=f"OCR processed {len(ocr_result.tokens)} tokens with {ocr_result.average_confidence:.1f}% confidence."
+            metrics={
+                "images_processed": len(image_ocr_results),
+                "extracted_tokens": total_tokens,
+                "avg_confidence": average_ocr_confidence,
+            },
+            remarks=f"OCR processed {total_tokens} tokens across {len(image_ocr_results)} package image(s)."
         )
         stages.append(stage5)
 
@@ -150,12 +218,28 @@ class AIPipelineOrchestrator:
         # Stage 6: Declaration extraction
         # ---------------------------------------------------------------------
         t0 = time.time()
-        extracted_dtos = await self.declaration_extractor.extract_declarations(
-            ocr_result, detected_regions, inspection.category
-        )
+        extracted_dtos = []
+
+        for image, ocr_result, detected_regions in image_ocr_results:
+            try:
+                image_dtos = await self.declaration_extractor.extract_declarations(
+                    ocr_result,
+                    detected_regions,
+                    inspection.category
+                )
+
+                for dto in image_dtos:
+                    dto.source_image_id = image.id
+                    extracted_dtos.append(dto)
+
+            except Exception as exc:
+                print(f"Declaration extraction failed for {image.file_name}: {exc}")
 
         # Persist extracted declarations in DB
-        db.query(Declaration).filter(Declaration.inspection_id == inspection_id).delete()
+        db.query(Declaration).filter(
+            Declaration.inspection_id == inspection_id
+        ).delete()
+
         for dto in extracted_dtos:
             decl = Declaration(
                 inspection_id=inspection_id,
@@ -163,12 +247,13 @@ class AIPipelineOrchestrator:
                 raw_text=dto.raw_text,
                 normalized_value=dto.normalized_value,
                 confidence=dto.confidence,
-                source_image_id=primary_image_id,
+                source_image_id=dto.source_image_id,
                 bounding_box=dto.bounding_box,
                 status=DeclarationStatus.DETECTED,
                 is_verified=False
             )
             db.add(decl)
+
         db.commit()
 
         stage6 = StageResult(
@@ -176,10 +261,17 @@ class AIPipelineOrchestrator:
             stage_name="Declaration extraction",
             status="COMPLETED",
             duration_ms=int((time.time() - t0) * 1000) + 320,
-            metrics={"declarations_count": len(extracted_dtos)},
-            remarks=f"Extracted {len(extracted_dtos)} structured statutory declarations."
+            metrics={
+                "images_processed": len(image_ocr_results),
+                "declarations_count": len(extracted_dtos),
+            },
+            remarks=f"Extracted {len(extracted_dtos)} structured statutory declarations across all uploaded image(s)."
         )
         stages.append(stage6)
+
+        # ---------------------------------------------------------------------
+        # Stage 7: Legal Metrology validation
+        # ---------------------------------------------------------------------
 
         # ---------------------------------------------------------------------
         # Stage 7: Legal Metrology validation

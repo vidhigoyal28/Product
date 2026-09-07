@@ -308,11 +308,11 @@ dashboard: {
     throw error;
   }
 },
-async uploadImage(inspectionId, file) {
+async uploadImage(inspectionId, file, imageType = 'PDP') {
   try {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('image_type', 'PDP');
+    formData.append('image_type', imageType);
 
     const response = await apiClient.post(
       `/inspections/${inspectionId}/images`,
