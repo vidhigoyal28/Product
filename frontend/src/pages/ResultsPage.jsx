@@ -588,6 +588,27 @@ export default function ResultsPage() {
   const hasOfficerDecision =
     reviews.length > 0;
 
+// Report data - supports backend snake_case fields
+const reportProductName =
+  inspection.productName || inspection.product_name || 'Not Available';
+
+const reportReferenceId =
+  inspection.referenceId || inspection.reference_id || 'Not Available';
+
+const reportConfidence =
+  inspection.confidenceScore ?? inspection.confidence_score ?? 0;
+
+const reportCreatedAt =
+  inspection.createdAt || inspection.created_at;
+
+const reportDate = reportCreatedAt
+  ? new Date(reportCreatedAt).toLocaleDateString()
+  : 'Not Available';
+
+const reportDeclarations = inspection.declarations || [];
+
+
+
   return (
     <div className="space-y-8">
 
@@ -1405,6 +1426,7 @@ export default function ResultsPage() {
             </p>
           </div>
 
+<<<<<<< HEAD
           {/* Meta */}
           <div className="grid grid-cols-2 gap-4 text-xs">
 
@@ -1571,6 +1593,113 @@ export default function ResultsPage() {
               )}
             </div>
           </div>
+=======
+          {/* Meta Details Table */}
+          {/* Meta Details Table */}
+<div className="grid grid-cols-2 gap-4 text-xs">
+  <div className="space-y-1">
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Inspection ID:
+      </span>{' '}
+      <span className="font-mono font-bold">
+        {inspection.id}
+      </span>
+    </p>
+
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Reference:
+      </span>{' '}
+      <span className="font-mono">
+        {reportReferenceId}
+      </span>
+    </p>
+
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Commodity:
+      </span>{' '}
+      <span className="font-bold">
+        {reportProductName}
+      </span>
+    </p>
+
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Category:
+      </span>{' '}
+      {inspection.category || 'Not Available'}
+    </p>
+  </div>
+
+  <div className="space-y-1 text-right">
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Inspection Date:
+      </span>{' '}
+      {reportDate}
+    </p>
+
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Enforcement Officer:
+      </span>{' '}
+      inspector.sharma
+    </p>
+
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        Overall Status:
+      </span>{' '}
+      <span className="font-bold font-mono">
+        {inspection.status}
+      </span>
+    </p>
+
+    <p>
+      <span className="text-slate-400 print:text-gray-600">
+        AI Confidence:
+      </span>{' '}
+      {reportConfidence}%
+    </p>
+  </div>
+</div>
+          {/* Declarations Summary */}
+          {/* Declarations Summary */}
+<div>
+  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 print:text-black mb-2 border-b border-slate-800 pb-1">
+    2. Mandatory Declarations Audit Summary
+  </h4>
+
+  <div className="grid grid-cols-2 gap-2 text-[11px]">
+    {reportDeclarations.length > 0 ? (
+      reportDeclarations.map((d, i) => (
+        <div
+          key={d.id || i}
+          className="flex justify-between gap-3 p-1.5 rounded bg-slate-900/60 print:bg-gray-50 border border-slate-800 print:border-gray-200"
+        >
+          <span className="text-slate-400 print:text-gray-600">
+            {d.field_name || d.label || 'Declaration'}:
+          </span>
+
+          <span className="font-mono font-medium text-right">
+            {d.raw_text ||
+              d.normalized_value ||
+              d.value ||
+              d.status ||
+              'Not Detected'}
+          </span>
+        </div>
+      ))
+    ) : (
+      <p className="text-xs text-slate-400">
+        No declaration data available.
+      </p>
+    )}
+  </div>
+</div>
+>>>>>>> origin/report-generation-fix
 
           {/* Officer Decision */}
           {latestReview && (
@@ -1644,20 +1773,11 @@ export default function ResultsPage() {
 
             <div className="text-center">
               <div className="w-36 border-b border-slate-600 print:border-black mb-1"></div>
+<p className="font-bold">
+  {getReviewerName(latestReview)}
+</p>
+<p className="text-[10px] text-slate-400 print:text-gray-600">
+  Legal Metrology Inspector
+</p>
 
-              <p className="font-bold">
-                {getReviewerName(
-                  latestReview
-                )}
-              </p>
-
-              <p className="text-[10px] text-slate-400 print:text-gray-600">
-                Legal Metrology Inspector
-              </p>
-            </div>
-          </div>
-        </div>
-      </Modal>
-    </div>
-  );
-}
+</div>
