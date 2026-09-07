@@ -4,7 +4,7 @@ import axios from 'axios';
 const apiClient = axios.create({
   baseURL:
     import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api',
-  timeout: 10000,
+  timeout: 120000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -260,12 +260,12 @@ export const api = {
         });
 
 
-    return response.data;
-  } catch (error) {
-    console.error('Create inspection error:', error);
-    throw error;
-  }
-},
+        return response.data;
+      } catch (error) {
+        console.error('Create inspection error:', error);
+        throw error;
+      }
+    },
     async uploadImage(inspectionId, file, imageType = 'PDP') {
       try {
         const formData = new FormData();
@@ -320,17 +320,17 @@ export const api = {
         const violations = (data.violations && data.violations.length > 0)
           ? data.violations
           : findings
-              .filter((f) => f.result === 'FAIL')
-              .map((f, idx) => ({
-                id: f.id || `v-${idx}`,
-                field: f.field,
-                title: f.field
-                  ? f.field.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) + ' Non-Compliance'
-                  : 'Statutory Non-Compliance',
-                description: f.reason,
-                severity: f.rule?.severity || 'HIGH',
-                rule: f.rule?.rule_clause_reference || 'Applicable Rule',
-              }));
+            .filter((f) => f.result === 'FAIL')
+            .map((f, idx) => ({
+              id: f.id || `v-${idx}`,
+              field: f.field,
+              title: f.field
+                ? f.field.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) + ' Non-Compliance'
+                : 'Statutory Non-Compliance',
+              description: f.reason,
+              severity: f.rule?.severity || 'HIGH',
+              rule: f.rule?.rule_clause_reference || 'Applicable Rule',
+            }));
 
         const safeOfficer =
           typeof data.officer === 'object' && data.officer !== null
@@ -349,9 +349,9 @@ export const api = {
           violations,
           imageUrl: firstImage?.url
             ? `${apiClient.defaults.baseURL.replace(
-                '/api',
-                ''
-              )}${firstImage.url}`
+              '/api',
+              ''
+            )}${firstImage.url}`
             : null,
         };
       } catch (error) {
@@ -541,8 +541,8 @@ export const api = {
           item.status === 'COMPLIANT'
             ? 'Package conforms to mandatory declarations requirements.'
             : item.status === 'NON_COMPLIANT'
-            ? 'Package exhibits statutory declaration violations as listed under Applicable Rule.'
-            : 'Package exhibits partial declaration ambiguities requiring manual inspection verification.',
+              ? 'Package exhibits statutory declaration violations as listed under Applicable Rule.'
+              : 'Package exhibits partial declaration ambiguities requiring manual inspection verification.',
       };
     },
   },
