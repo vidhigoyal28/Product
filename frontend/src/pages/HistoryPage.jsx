@@ -16,6 +16,7 @@ import {
 import { api } from '../services/api';
 import StatusBadge from '../components/common/StatusBadge';
 
+
 const CATEGORIES = [
   'ALL',
   'Food & Confectionery',
@@ -31,22 +32,32 @@ export default function HistoryPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const fetchHistory = async () => {
-    setLoading(true);
-    try {
-      const data = await api.history.list({
-        search,
-        status: statusFilter,
-        category: categoryFilter,
-      });
-      setInspections(data);
-    } catch (err) {
-      console.error('Failed to load history', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+const fetchHistory = async () => {
+  setLoading(true);
+  setError('');
+
+  try {
+    const data = await api.history.list({
+      search,
+      status: statusFilter,
+      category: categoryFilter,
+    });
+
+    setInspections(data);
+  } catch (err) {
+    console.error('Failed to load history', err);
+
+    setInspections([]);
+    setError(
+      err?.response?.data?.detail ||
+      'Unable to load inspection history. Please try again.'
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchHistory();
@@ -130,7 +141,31 @@ export default function HistoryPage() {
               <p className="text-xs text-slate-400 font-mono">Loading history records...</p>
             </div>
           </div>
-        ) : inspections.length === 0 ? (
+        ) : error ? (
+  <div className="p-12 text-center space-y-4">
+    <div className="flex justify-center">
+      <RefreshCw size={40} className="text-rose-500" />
+    </div>
+
+    <div>
+      <h3 className="text-sm font-semibold text-slate-300">
+        Unable to Load Inspection History
+      </h3>
+
+      <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+        {error}
+      </p>
+    </div>
+
+    <button
+      onClick={fetchHistory}
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold"
+    >
+      <RefreshCw size={14} />
+      Retry
+    </button>
+  </div>
+) : inspections.length === 0 ? (
           <div className="p-12 text-center space-y-3">
             <Package size={40} className="text-slate-600 mx-auto" />
             <h3 className="text-sm font-semibold text-slate-300">No Inspection Records Found</h3>
@@ -158,11 +193,17 @@ export default function HistoryPage() {
                     {/* Commodity preview */}
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={item.imageUrl}
-                          alt={item.productName}
-                          className="w-10 h-10 rounded-lg object-cover border border-slate-700 bg-slate-950 shrink-0"
-                        />
+                        {item.imageUrl ? (
+  <img
+    src={item.imageUrl}
+    alt={item.productName}
+    className="w-10 h-10 rounded-lg object-cover border border-slate-700 bg-slate-950 shrink-0"
+  />
+) : (
+  <div className="w-10 h-10 rounded-lg border border-slate-700 bg-slate-950 flex items-center justify-center shrink-0">
+    <Package size={16} className="text-slate-600" />
+  </div>
+)}
                         <div>
                           <p className="font-semibold text-slate-100 line-clamp-1">{item.productName}</p>
                           <p className="text-[11px] text-slate-400">{item.category}</p>
