@@ -34,15 +34,26 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://localhost:8000"
 
+    # OCR Configuration
+    TESSERACT_CMD: Union[str, None] = None
+
     # Rule Engine Defaults
     DEFAULT_RULE_VERSION: str = "2011.1"
     STRICT_OCR_CONFIDENCE_THRESHOLD: float = 80.0
+
+    @property
+    def clean_database_url(self) -> str:
+        url = self.DATABASE_URL
+        if url and url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
 
     @property
     def cors_origins_list(self) -> List[str]:
         if isinstance(self.CORS_ORIGINS, str):
             return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
         return self.CORS_ORIGINS
+
 
 
 settings = Settings()

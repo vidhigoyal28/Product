@@ -231,19 +231,23 @@ const fetchHistory = async () => {
                     <td className="py-3.5 px-3 text-center">
                       <span
                         className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${
-                          item.violations.length > 0
+                          (item.violations || []).length > 0
                             ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
                             : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                         }`}
                       >
-                        {item.violations.length}
+                        {(item.violations || []).length}
                       </span>
                     </td>
 
                     {/* Date & Officer */}
                     <td className="py-3.5 px-4 text-slate-400 text-[11px]">
-                      <p className="text-slate-300">{new Date(item.createdAt).toLocaleDateString()}</p>
-                      <p className="text-[10px] text-slate-400">{item.officer || 'Inspector'}</p>
+                      <p className="text-slate-300">{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}</p>
+                      <p className="text-[10px] text-slate-400">
+                        {typeof item.officer === 'object' && item.officer !== null
+                          ? item.officer.full_name || item.officer.username || 'Inspector'
+                          : item.officer || 'Inspector'}
+                      </p>
                     </td>
 
                     {/* Action Links */}

@@ -588,6 +588,57 @@ export default function ResultsPage() {
   const hasOfficerDecision =
     reviews.length > 0;
 
+  // Report data - supports backend snake_case fields
+  const reportProductName =
+    inspection.productName || inspection.product_name || 'Not Available';
+
+  const reportReferenceId =
+    inspection.referenceId || inspection.reference_id || '—';
+
+  const reportConfidence = Number(
+    inspection.confidenceScore ?? inspection.confidence_score ?? 0
+  ).toFixed(1);
+
+  const reportCreatedAt =
+    inspection.createdAt || inspection.created_at;
+
+  const reportDate = reportCreatedAt
+    ? new Date(reportCreatedAt).toLocaleDateString()
+    : 'Not Available';
+
+  const reportDeclarations = inspection.declarations || [];
+
+  const reportViolations =
+    (inspection.violations && inspection.violations.length > 0)
+      ? inspection.violations
+      : (inspection.findings || [])
+          .filter((f) => f.result === 'FAIL')
+          .map((f, i) => ({
+            id: f.id || i,
+            title: f.field
+              ? f.field.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) + ' Non-Compliance'
+              : 'Statutory Non-Compliance',
+            rule: f.rule?.rule_clause_reference || 'Applicable Rule',
+            description: f.reason,
+            severity: f.rule?.severity || 'HIGH',
+          }));
+
+  const getOfficerDisplayName = () => {
+    if (typeof inspection.officer === 'object' && inspection.officer !== null) {
+      return inspection.officer.full_name || inspection.officer.username || 'Inspector R. Sharma';
+    }
+    if (typeof inspection.officer === 'string' && inspection.officer.trim()) {
+      return inspection.officer;
+    }
+    const currentOfficer = getCurrentOfficer();
+    if (currentOfficer) {
+      return currentOfficer.full_name || currentOfficer.username || 'Inspector R. Sharma';
+    }
+    return 'Inspector R. Sharma';
+  };
+
+
+
   return (
     <div className="space-y-8">
 
@@ -1388,7 +1439,7 @@ export default function ResultsPage() {
           </>
         }
       >
-        <div className="p-6 bg-slate-950 text-slate-100 rounded-xl border border-slate-800 space-y-6 print:bg-white print:text-black print:p-0 print:border-none">
+        <div id="printable-report" className="p-6 bg-slate-950 text-slate-100 rounded-xl border border-slate-800 space-y-6 print:bg-white print:text-black print:p-0 print:border-none">
 
           {/* Department Header */}
           <div className="text-center border-b border-slate-800 pb-4 print:border-black">
@@ -1405,9 +1456,8 @@ export default function ResultsPage() {
             </p>
           </div>
 
-          {/* Meta */}
+          {/* Meta Details Table */}
           <div className="grid grid-cols-2 gap-4 text-xs">
-
             <div className="space-y-1">
               <p>
                 <span className="text-slate-400 print:text-gray-600">
@@ -1425,9 +1475,7 @@ export default function ResultsPage() {
                   Reference:
                 </span>{' '}
                 <span className="font-mono">
-                  {inspection.referenceId ||
-                    inspection.reference_id ||
-                    '—'}
+                  {reportReferenceId}
                 </span>
               </p>
 
@@ -1436,8 +1484,7 @@ export default function ResultsPage() {
                   Commodity:
                 </span>{' '}
                 <span className="font-bold">
-                  {inspection.productName ||
-                    inspection.product_name}
+                  {reportProductName}
                 </span>
               </p>
 
@@ -1445,32 +1492,34 @@ export default function ResultsPage() {
                 <span className="text-slate-400 print:text-gray-600">
                   Category:
                 </span>{' '}
-                {inspection.category || '—'}
+                {inspection.category || 'Not Available'}
               </p>
             </div>
 
             <div className="space-y-1 text-right">
-
               <p>
                 <span className="text-slate-400 print:text-gray-600">
                   Inspection Date:
                 </span>{' '}
-                {new Date(
-                  inspection.createdAt ||
-                    inspection.created_at
-                ).toLocaleDateString()}
+                {reportDate}
               </p>
 
               <p>
                 <span className="text-slate-400 print:text-gray-600">
                   Enforcement Officer:
                 </span>{' '}
-                {typeof inspection.officer === 'object'
-                  ? inspection.officer?.full_name ||
-                    inspection.officer?.username ||
-                    'Inspector'
-                  : inspection.officer ||
-                    'Inspector'}
+                <span className="font-semibold">
+                  {getOfficerDisplayName()}
+                </span>
+              </p>
+
+              <p>
+                <span className="text-slate-400 print:text-gray-600">
+                  Overall Status:
+                </span>{' '}
+                <span className="font-bold font-mono">
+                  {officerFinalStatus}
+                </span>
               </p>
 
               <p>
@@ -1484,40 +1533,28 @@ export default function ResultsPage() {
 
               <p>
                 <span className="text-slate-400 print:text-gray-600">
-                  Officer Final Status:
-                </span>{' '}
-                <span className="font-bold font-mono">
-                  {officerFinalStatus}
-                </span>
-              </p>
-
-              <p>
-                <span className="text-slate-400 print:text-gray-600">
                   AI Confidence:
                 </span>{' '}
-                {Number(
-                  inspection.confidenceScore ||
-                    inspection.confidence_score ||
-                    0
-                ).toFixed(1)}
-                %
+                <span className="font-mono">
+                  {reportConfidence}%
+                </span>
               </p>
             </div>
           </div>
 
-          {/* Violations */}
+          {/* Section 1: Statutory Non-Compliance Findings */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 print:text-black mb-2 border-b border-slate-800 pb-1">
               1. Statutory Non-Compliance Findings
             </h4>
 
-            {(inspection.violations || []).length === 0 ? (
+            {reportViolations.length === 0 ? (
               <p className="text-xs text-emerald-400 print:text-green-700">
                 No violations observed. Commodity is compliant under Applicable Rule.
               </p>
             ) : (
               <ul className="space-y-2 text-xs">
-                {inspection.violations.map((v, i) => (
+                {reportViolations.map((v, i) => (
                   <li
                     key={v.id || i}
                     className="p-2.5 rounded bg-slate-900 print:bg-gray-100 border border-slate-800 print:border-gray-300"
@@ -1528,7 +1565,7 @@ export default function ResultsPage() {
                       </span>
 
                       <span className="font-mono text-[11px] text-slate-400 print:text-black">
-                        {v.rule}
+                        {v.rule || 'Applicable Rule'}
                       </span>
                     </div>
 
@@ -1541,38 +1578,41 @@ export default function ResultsPage() {
             )}
           </div>
 
-          {/* Declarations */}
+          {/* Section 2: Mandatory Declarations Audit Summary */}
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 print:text-black mb-2 border-b border-slate-800 pb-1">
               2. Mandatory Declarations Audit Summary
             </h4>
 
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              {(inspection.declarations || []).map(
-                (d, i) => (
+            {reportDeclarations.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                {reportDeclarations.map((d, i) => (
                   <div
                     key={d.id || i}
-                    className="flex justify-between p-1.5 rounded bg-slate-900/60 print:bg-gray-50 border border-slate-800 print:border-gray-200"
+                    className="flex justify-between gap-3 p-1.5 rounded bg-slate-900/60 print:bg-gray-50 border border-slate-800 print:border-gray-200"
                   >
                     <span className="text-slate-400 print:text-gray-600">
-                      {d.label ||
-                        d.field_name ||
-                        'Declaration'}
-                      :
+                      {d.field_name || d.label || 'Declaration'}:
                     </span>
 
-                    <span className="font-mono font-medium">
-                      {d.status ||
-                        d.result ||
-                        '—'}
+                    <span className="font-mono font-medium text-right">
+                      {d.raw_text ||
+                        d.normalized_value ||
+                        d.value ||
+                        d.status ||
+                        'Not Detected'}
                     </span>
                   </div>
-                )
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">
+                No declaration data available.
+              </p>
+            )}
           </div>
 
-          {/* Officer Decision */}
+          {/* Section 3: Officer Review & Final Decision */}
           {latestReview && (
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 print:text-black mb-2 border-b border-slate-800 pb-1">
@@ -1585,9 +1625,7 @@ export default function ResultsPage() {
                     Decision:
                   </span>{' '}
                   <span className="font-bold">
-                    {getDecisionLabel(
-                      latestReview
-                    )}
+                    {getDecisionLabel(latestReview)}
                   </span>
                 </p>
 
@@ -1621,16 +1659,14 @@ export default function ResultsPage() {
                     Reviewed At:
                   </span>{' '}
                   {latestReview.created_at
-                    ? new Date(
-                        latestReview.created_at
-                      ).toLocaleString()
+                    ? new Date(latestReview.created_at).toLocaleString()
                     : '—'}
                 </p>
               </div>
             </div>
           )}
 
-          {/* Signatory */}
+          {/* Section 4: Signatory & Digest */}
           <div className="pt-6 border-t border-slate-800 print:border-black flex justify-between items-end text-xs">
             <div>
               <p className="text-[10px] text-slate-400 print:text-gray-600">
@@ -1644,13 +1680,9 @@ export default function ResultsPage() {
 
             <div className="text-center">
               <div className="w-36 border-b border-slate-600 print:border-black mb-1"></div>
-
               <p className="font-bold">
-                {getReviewerName(
-                  latestReview
-                )}
+                {latestReview ? getReviewerName(latestReview) : getOfficerDisplayName()}
               </p>
-
               <p className="text-[10px] text-slate-400 print:text-gray-600">
                 Legal Metrology Inspector
               </p>

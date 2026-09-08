@@ -141,7 +141,11 @@ export default function ReportsPage() {
               </div>
 
               <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
-                <span className="text-[11px] text-slate-400">{report.officer}</span>
+                <span className="text-[11px] text-slate-400">
+                  {typeof report.officer === 'object' && report.officer !== null
+                    ? report.officer.full_name || report.officer.username || 'Inspector'
+                    : report.officer || 'Inspector'}
+                </span>
                 <button
                   onClick={() => handleOpenReport(report)}
                   className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors"
@@ -159,8 +163,8 @@ export default function ReportsPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={`Official Notice: ${selectedReport?.reportId || 'Inspection Report'}`}
-        subtitle="Department of Consumer Affairs • Legal Metrology Division"
+        title="Statutory Label Compliance Audit Notice"
+        subtitle={`Form II Notice — ${reportDetails?.reportId || ''}`}
         size="lg"
         footer={
           <>
@@ -175,32 +179,23 @@ export default function ReportsPage() {
               className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-600/20 flex items-center gap-1.5"
             >
               <Printer size={15} />
-              <span>Print Official Copy</span>
+              <span>Print Official Notice</span>
             </button>
           </>
         }
       >
         {reportDetails && (
-          <div className="p-6 bg-slate-950 text-slate-100 rounded-xl border border-slate-800 space-y-6 print:bg-white print:text-black">
-            {/* Header */}
+          <div className="p-6 bg-slate-950 text-slate-100 rounded-xl border border-slate-800 space-y-6">
+            {/* Header Details */}
             <div className="text-center border-b border-slate-800 pb-4">
               <p className="text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                {reportDetails.department}
+                Department of Consumer Affairs • Legal Metrology Division
               </p>
-              <h2 className="text-base font-extrabold uppercase mt-1">
-                Statutory Compliance Audit Certificate
-              </h2>
-              <p className="text-xs text-blue-400 font-mono mt-0.5">
-                Report Identifier: {reportDetails.reportId}
-              </p>
+              <h2 className="text-base font-extrabold uppercase mt-1">Form II Statutory Notice of Verification</h2>
+              <p className="text-xs font-semibold text-blue-400 mt-0.5">Under Legal Metrology (Packaged Commodities) Rules, 2011</p>
             </div>
 
-            {/* Content summary */}
-            <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 text-xs leading-relaxed">
-              <p className="font-semibold text-slate-200 mb-1">Executive Compliance Determination:</p>
-              <p className="text-slate-300">{reportDetails.complianceSummary}</p>
-            </div>
-
+            {/* Meta */}
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div>
                 <p className="text-slate-400">Target Sample:</p>
@@ -210,7 +205,11 @@ export default function ReportsPage() {
               <div className="text-right">
                 <p className="text-slate-400">Verification Verdict:</p>
                 <p className="font-bold text-slate-200">{reportDetails.inspection.status}</p>
-                <p className="text-slate-400 mt-1">Audited by: {reportDetails.inspection.officer}</p>
+                <p className="text-slate-400 mt-1">
+                  Audited by: {typeof reportDetails.inspection.officer === 'object' && reportDetails.inspection.officer !== null
+                    ? reportDetails.inspection.officer.full_name || reportDetails.inspection.officer.username || 'Inspector'
+                    : reportDetails.inspection.officer || 'Inspector'}
+                </p>
               </div>
             </div>
 
@@ -219,11 +218,11 @@ export default function ReportsPage() {
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 mb-2 border-b border-slate-800 pb-1">
                 Statutory Violations Logged
               </h4>
-              {reportDetails.inspection.violations.length === 0 ? (
+              {(reportDetails.inspection.violations || []).length === 0 ? (
                 <p className="text-xs text-emerald-400">No violations observed on Principal Display Panel.</p>
               ) : (
                 <div className="space-y-2 text-xs">
-                  {reportDetails.inspection.violations.map((v, i) => (
+                  {(reportDetails.inspection.violations || []).map((v, i) => (
                     <div key={i} className="p-2.5 rounded bg-slate-900 border border-slate-800 flex justify-between">
                       <div>
                         <p className="font-semibold text-slate-200">• {v.title}</p>
@@ -244,7 +243,11 @@ export default function ReportsPage() {
               </div>
               <div className="text-center">
                 <div className="w-32 border-b border-slate-600 mb-1"></div>
-                <p className="font-bold">{reportDetails.inspection.officer}</p>
+                <p className="font-bold">
+                  {typeof reportDetails.inspection.officer === 'object' && reportDetails.inspection.officer !== null
+                    ? reportDetails.inspection.officer.full_name || reportDetails.inspection.officer.username || 'Inspector'
+                    : reportDetails.inspection.officer || 'Inspector'}
+                </p>
                 <p className="text-[10px] text-slate-400">Authorized Enforcement Officer</p>
               </div>
             </div>
