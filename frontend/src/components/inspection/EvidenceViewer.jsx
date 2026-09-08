@@ -161,7 +161,7 @@ export default function EvidenceViewer({
             ? `${boundingBoxes.length} Statutory Declaration Regions Highlighted`
             : 'Evidence Label Visualizer'}
         </span>
-        <span className="text-[10px] font-mono text-slate-400">Simulated OCR Bounding Box Layer</span>
+        
       </div>
 
       {/* Full Modal Viewer */}

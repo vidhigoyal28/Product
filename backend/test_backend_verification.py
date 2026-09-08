@@ -81,15 +81,13 @@ def run_tests():
         # 5. Image Upload
         print("\n[5] Testing Package Image Upload (POST /api/inspections/{id}/images)...")
         from PIL import Image as PILImage
-        img_buf = io.BytesIO()
-        test_img = PILImage.new("RGB", (640, 480), color=(73, 109, 137))
-        test_img.save(img_buf, format="JPEG")
-        img_bytes = img_buf.getvalue()
+        with open("test_product.jpg", "rb") as f:
+            img_bytes = f.read()
 
         upload_res = client.post(
             f"/api/inspections/{inspection_id}/images",
             headers=inspector_headers,
-            files={"file": ("pdp_front.jpg", img_bytes, "image/jpeg")},
+            files={"file": ("test_product.jpg", img_bytes, "image/jpeg")},
             data={"image_type": "PDP"}
         )
         assert upload_res.status_code == 201, f"Image upload failed: {upload_res.text}"
@@ -104,7 +102,7 @@ def run_tests():
         assert get_res.status_code == 200, f"Inspection get failed: {get_res.text}"
         detail_data = get_res.json()
         assert len(detail_data["images"]) >= 1
-        assert detail_data["images"][0]["file_name"] == "pdp_front.jpg"
+        assert detail_data["images"][0]["file_name"] == "test_product.jpg"
         print(f"  -> Passed: Retrieved inspection with {len(detail_data['images'])} attached image(s).")
 
         # 7. AI Analysis & 8-Stage Pipeline
@@ -143,7 +141,7 @@ def run_tests():
         print("\n[9] Testing Role-Based Authorization (RBAC)...")
         # Inspector trying to create a rule (Restricted to ADMIN/REVIEWER)
         forbidden_res = client.post("/api/rules", headers=inspector_headers, json={
-            "rule_id": "RULE-TEST-999",
+            "rule_id": "RULE-TEST-1000",
             "requirement": "Unauthorized test rule"
         })
         assert forbidden_res.status_code == 403, f"Expected 403 Forbidden for Inspector creating rule, got {forbidden_res.status_code}"
@@ -151,7 +149,7 @@ def run_tests():
 
         # Admin creating a rule (Allowed)
         allowed_rule_res = client.post("/api/rules", headers=admin_headers, json={
-            "rule_id": "RULE-TEST-999",
+            "rule_id": "RULE-TEST-1000",
             "source_document": "Legal Metrology (Packaged Commodities) Rules, 2011",
             "rule_clause_reference": "Applicable Rule",
             "version": "2011.1",

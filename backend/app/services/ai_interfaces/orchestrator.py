@@ -79,6 +79,10 @@ class AIPipelineOrchestrator:
         for image in images:
             try:
                 image_bytes = await storage.get_file(image.file_path)
+                print(
+                    f"IMAGE DEBUG | file={image.file_name} | "
+                    f"path={image.file_path} | bytes={len(image_bytes)}"
+                )
 
                 if not primary_image_bytes:
                     primary_image_bytes = image_bytes

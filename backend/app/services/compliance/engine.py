@@ -39,9 +39,22 @@ class ComplianceEngine:
 
         # Retrieve all extracted declarations for this inspection
         declarations = db.query(Declaration).filter(Declaration.inspection_id == inspection_id).all()
-        decl_map = {d.field_name: d for d in declarations}
+        decl_map = {}
+        for declaration in declarations:
+            field_name = declaration.field_name
 
-        # Clear existing unverified findings for clean re-evaluation
+            if not field_name:
+                continue
+
+            existing = decl_map.get(field_name)
+
+            if existing is None:
+                decl_map[field_name] = declaration
+            else:
+                existing_confidence = existing.confidence or 0
+                new_confidence = declaration.confidence or 0
+                if new_confidence > existing_confidence:
+                    decl_map[field_name] = declaration
         db.query(ComplianceFinding).filter(
             ComplianceFinding.inspection_id == inspection_id,
             ComplianceFinding.is_verified == False

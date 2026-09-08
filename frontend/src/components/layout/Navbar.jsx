@@ -46,11 +46,7 @@ export default function Navbar() {
           <span>New Inspection</span>
         </Link>
 
-        {/* System Status Pill */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="text-slate-300 font-medium text-[11px]">Engine: Ready (Mock v1)</span>
-        </div>
+        
 
         {/* User Info / Profile Menu */}
         <div className="flex items-center gap-2 pl-2 border-l border-slate-800">

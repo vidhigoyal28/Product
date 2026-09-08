@@ -309,28 +309,51 @@ export const api = {
 
     async getById(id) {
       try {
-        const response = await apiClient.get(
-          `/inspections/${id}`
-        );
+    const response = await apiClient.get(`/inspections/${id}`);
 
-        const data = response.data;
-        const firstImage = data.images?.[0];
+    const data = response.data;
+    const images = data.images || [];
+    const firstImage = images[0];
 
-        return {
-          ...data,
+    const findings = data.findings || [];
 
-          imageUrl: firstImage?.url
-            ? `${apiClient.defaults.baseURL.replace(
-                '/api',
-                ''
-              )}${firstImage.url}`
-            : null,
-        };
-      } catch (error) {
-        console.error('Get inspection error:', error);
-        throw error;
-      }
-    },
+    // Only failed findings are actual violations.
+    const violations = findings
+      .filter((finding) => finding.result === 'FAIL')
+      .map((finding) => ({
+        id: finding.id,
+        title:
+          finding.field_name ||
+          finding.field ||
+          'Compliance Violation',
+        field:
+          finding.field_name ||
+          finding.field ||
+          null,
+        reason:
+          finding.reason ||
+          'The declaration did not satisfy the applicable compliance rule.',
+        result: finding.result,
+        confidence: finding.confidence,
+        ruleId: finding.rule_id,
+        ruleVersion: finding.rule_version,
+        evidenceImageId: finding.evidence_image_id,
+        boundingBox: finding.bounding_box,
+      }));
+
+    return {
+      ...data,
+      images,
+      imageUrl: firstImage?.url
+        ? `${apiClient.defaults.baseURL.replace('/api', '')}${firstImage.url}`
+        : null,
+      violations,
+    };
+  } catch (error) {
+    console.error('Get inspection error:', error);
+    throw error;
+  }
+},
 
     // -------------------------------------------------------------------------
     // Officer Review
